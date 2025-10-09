@@ -1,0 +1,60 @@
+version: "3.9"
+
+
+networks:
+  jenkins:
+    name: jenkins  
+
+volumes:
+  docker-certs-ca:
+  docker-certs-client:
+  jenkins-data:
+
+services:
+  dind:
+    image: docker:dind
+    container_name: dind
+    privileged: true
+    user: root
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    networks:
+      jenkins:
+        aliases:
+          - docker           
+    volumes:
+      - docker-certs-ca:/certs/ca
+      - docker-certs-client:/certs/client
+      - jenkins-data:/var/jenkins_home  
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  jenkins:
+    image: jenkins/jenkins:lts-jdk11
+    container_name: jenkins
+    depends_on:
+      dind:
+        condition: service_healthy
+    user: root                        
+    networks:
+      - jenkins
+    ports:
+      - "${JENKINS_HTTP_PORT:-8080}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+    environment:
+      DOCKER_HOST: "tcp://docker:2376"
+      DOCKER_CERT_PATH: "/certs/client"
+      DOCKER_TLS_VERIFY: "1"
+     
+      CASC_JENKINS_CONFIG: "/var/jenkins_home/casc/jenkins.yaml"
+      JENKINS_ADMIN_USER: "${JENKINS_ADMIN_USER}"
+      JENKINS_ADMIN_PASS: "${JENKINS_ADMIN_PASS}"
+      JENKINS_CI_USER: "${JENKINS_CI_USER}"
+      JENKINS_CI_PASS: "${JENKINS_CI_PASS}"
+    volumes:
+      - docker-certs-client:/certs/client:ro 
+      - jenkins-data:/var/jenkins_home
+      - /usr/bin/docker:/usr/bin/docker 

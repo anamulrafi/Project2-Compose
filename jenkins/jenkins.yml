@@ -1,0 +1,26 @@
+jenkins:
+  systemMessage: |
+    Anonymous disabled. Use non-admin 'ci' in pipelines.
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER}"
+          password: "${JENKINS_ADMIN_PASS}"
+        - id: "${JENKINS_CI_USER}"
+          password: "${JENKINS_CI_PASS}"
+
+  authorizationStrategy:
+    projectMatrix:
+      permissions:
+        - "USER:Overall/Administer:${JENKINS_ADMIN_USER}"
+        - "USER:Overall/Read:authenticated"
+        - "USER:Job/Discover:authenticated"
+        - "USER:Job/Read:authenticated"
+        - "USER:Job/Build:authenticated"
+        - "USER:View/Read:authenticated"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
