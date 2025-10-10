@@ -1,60 +1,59 @@
-version: "3.9"
-
+# docker-compose.yml (no `version:`)
+x-common-labels: &common_labels
+  com.example.stack: "jenkins-dind"
 
 networks:
-  jenkins:
-    name: jenkins  
+  jnx:
+    external: true
+    name: jenkins   # reuse the already-created network as-is
 
 volumes:
-  docker-certs-ca:
-  docker-certs-client:
-  jenkins-data:
+  certs_ca:
+  certs_client:
+  jenkins_home:
 
 services:
   dind:
-    image: docker:dind
-    container_name: dind
+    image: ${DIND_IMAGE:-docker:dind}
+    container_name: docker-engine
     privileged: true
-    user: root
+    user: "0:0"
     environment:
-      DOCKER_TLS_CERTDIR: /certs
+      - DOCKER_TLS_CERTDIR=/certs
     networks:
-      jenkins:
-        aliases:
-          - docker           
+      jnx:
+        aliases: [docker]
     volumes:
-      - docker-certs-ca:/certs/ca
-      - docker-certs-client:/certs/client
-      - jenkins-data:/var/jenkins_home  
+      - certs_ca:/certs/ca
+      - certs_client:/certs/client
+      - jenkins_home:/var/jenkins_home
     healthcheck:
-      test: ["CMD", "docker", "info"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      test: ["CMD", "docker", "version"]
+    restart: unless-stopped
+    labels: *common_labels
 
   jenkins:
-    image: jenkins/jenkins:lts-jdk11
-    container_name: jenkins
+    image: ${JENKINS_IMAGE:-jenkins/jenkins:lts-jdk11}
+    container_name: jenkins-app
     depends_on:
       dind:
         condition: service_healthy
-    user: root                        
-    networks:
-      - jenkins
+    user: "0:0"
+    networks: [jnx]
     ports:
       - "${JENKINS_HTTP_PORT:-8080}:8080"
       - "${JENKINS_AGENT_PORT:-50000}:50000"
+    env_file: [.env]
     environment:
-      DOCKER_HOST: "tcp://docker:2376"
-      DOCKER_CERT_PATH: "/certs/client"
-      DOCKER_TLS_VERIFY: "1"
-     
-      CASC_JENKINS_CONFIG: "/var/jenkins_home/casc/jenkins.yaml"
-      JENKINS_ADMIN_USER: "${JENKINS_ADMIN_USER}"
-      JENKINS_ADMIN_PASS: "${JENKINS_ADMIN_PASS}"
-      JENKINS_CI_USER: "${JENKINS_CI_USER}"
-      JENKINS_CI_PASS: "${JENKINS_CI_PASS}"
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc/jenkins.yml
     volumes:
-      - docker-certs-client:/certs/client:ro 
-      - jenkins-data:/var/jenkins_home
-      - /usr/bin/docker:/usr/bin/docker 
+      - certs_client:/certs/client:ro
+      - jenkins_home:/var/jenkins_home
+      - /usr/bin/docker:/usr/bin/docker:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/login >/dev/null || exit 1"]
+    restart: unless-stopped
+    labels: *common_labels

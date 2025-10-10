@@ -1,26 +1,50 @@
-jenkins:
-  systemMessage: |
-    Anonymous disabled. Use non-admin 'ci' in pipelines.
+# ============================
+# Jenkins Configuration as Code (JCasC)
+# Customized for local CI/CD setup with Docker-in-Docker
+# ============================
 
+jenkins:
+  # Message displayed at the top of Jenkins dashboard
+  systemMessage: >
+    Jenkins configured via JCasC. Anonymous access is disabled.
+    Use the non-admin 'ci' user in pipelines only.
+
+  # ----------------------------
+  # Security: Local Realm Users
+  # ----------------------------
   securityRealm:
     local:
       allowsSignup: false
       users:
+        # Admin user for initial setup and configuration
         - id: "${JENKINS_ADMIN_USER}"
           password: "${JENKINS_ADMIN_PASS}"
+
+        # Least-privileged CI user (used by automation only)
         - id: "${JENKINS_CI_USER}"
           password: "${JENKINS_CI_PASS}"
 
+  # ----------------------------
+  # Authorization Strategy
+  # Project-based Matrix with fine-grained control
+  # ----------------------------
   authorizationStrategy:
     projectMatrix:
       permissions:
+        # Admin has full control
         - "USER:Overall/Administer:${JENKINS_ADMIN_USER}"
+
+        # Authenticated users can view and build jobs
         - "USER:Overall/Read:authenticated"
         - "USER:Job/Discover:authenticated"
         - "USER:Job/Read:authenticated"
         - "USER:Job/Build:authenticated"
         - "USER:View/Read:authenticated"
 
+# ----------------------------
+# Jenkins Location Configuration
+# Used for URL generation in emails, webhooks, etc.
+# ----------------------------
 unclassified:
   location:
-    url: "http://localhost:8080/"
+    url: "http://localhost:${JENKINS_HTTP_PORT:-8080}/"
